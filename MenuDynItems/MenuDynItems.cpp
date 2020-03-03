@@ -13,7 +13,7 @@
 void BuildMenu(BMenu *dst, int level)
 {
 	char buf[64];
-	int cnt = 4;
+	int cnt = 10;
 	BMenu *subMenu;
 	if (level == 0) {
 		dst->AddItem(new BMenuItem("Menu item", new BMessage('item')));
@@ -25,6 +25,7 @@ void BuildMenu(BMenu *dst, int level)
 		}
 		cnt = 16;
 	}
+
 	for (int i = 0; i < cnt; ++i) {
 		if (level < 3) {
 			sprintf(buf, "%d", i);
@@ -43,31 +44,38 @@ public:
 	TestMenuBar(): BMenuBar(BRect(0, 0, 32, 32), "menu", B_FOLLOW_LEFT_RIGHT | B_FOLLOW_TOP, B_ITEMS_IN_ROW, true)
 	{
 		BuildMenu(this, 0);
-		fDynItem = ItemAt(2)->Submenu()->ItemAt(1);
 	}
 
-	void UpdateDynItems(int32 modifiers)
+	bool UpdateDynItems(int32 modifiers)
 	{
-		if (((modifiers & B_SHIFT_KEY) != 0) != fModified) {
-			BMenu *menu = fDynItem->Menu();
-			if (menu->Window() == NULL || menu->LockLooper()) {
-				fModified = !fModified;
-				if (fModified) {
-					fOrigText = fDynItem->Label();
-					BString buf;
-					buf += fDynItem->Label();
-					buf += " (Shift)";
-					fDynItem->SetLabel(buf);
-				} else {
-					fDynItem->SetLabel(fOrigText);
-				}
-				int32 index = menu->IndexOf(fDynItem);
-				menu->RemoveItem(fDynItem);
-				menu->AddItem(fDynItem, index);
-				if (menu->Window() != NULL)
-					menu->UnlockLooper();
-			}
+		BMenu *menu = ItemAt(2)->Submenu();
+		if (menu == NULL || menu->Window() == NULL || !menu->LockLooper())
+			return false;
+
+		int32 count = menu->CountItems() - 1;
+			// don't update the last item
+		for (int32 index = 0; index < count; index++) {
+			BString label;
+			label << index;
+			const char* origText = label.String();
+			BMenuItem* item = menu->ItemAt(index);
+			if ((modifiers & B_SHIFT_KEY) != 0) {
+				BString buf(origText);
+				buf << " (Shift)";
+				item->SetLabel(buf.String());
+				if (index < 10)
+					item->SetShortcut((char)(index + 48), B_SHIFT_KEY);
+			} else
+				item->SetLabel(origText);
+
+			if (index < 10)
+				item->SetShortcut((char)(index + 48), modifiers);
+
+			menu->RemoveItem(item);
+			menu->AddItem(item, index);
 		}
+		menu->UnlockLooper();
+		return true;
 	}
 
 	void MessageReceived(BMessage *msg)
@@ -84,9 +92,6 @@ public:
 	}
 
 private:
-	BMenuItem *fDynItem;
-	bool fModified;
-	BString fOrigText;
 };
 
 class TestWindow: public BWindow
